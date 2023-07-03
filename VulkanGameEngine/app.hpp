@@ -28,10 +28,12 @@ namespace vlk {
 		void createPipeline();
 		void createCommandBuffers();
 		void drawFrame();
+		void recreateSwapChain();
+		void recordCommandBuffer(int imageIndex);
 
 		VLKWindow vlkWindow{ WIDTH, HEIGHT, "Hello Vulkan!" };
 		VLKDevice vlkDevice{ vlkWindow };
-		VLKSwapChain vlkSwapChain{ vlkDevice, vlkWindow.getExtent() };
+		std::unique_ptr<VLKSwapChain> vlkSwapChain;
 		std::unique_ptr<VLKPipeline> vlkPipeline;
 		VkPipelineLayout pipelineLayout;
 		std::vector<VkCommandBuffer> commandBuffers;
