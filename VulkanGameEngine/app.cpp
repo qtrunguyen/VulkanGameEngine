@@ -37,12 +37,13 @@ namespace vlk {
 	}
 
 	void App::createPipeline() {
+		assert(vlkSwapChain != nullptr && "Cannot create pipeline before swapchain");
+		assert(pipelineLayout != nullptr && "Cannot create pipeline before pipeline layout");
+
 		//auto pipelineConfig = VLKPipeline::defaultPipelineConfigInfo(vlkSwapChain->width(), vlkSwapChain->height());
 		PipelineConfigInfo pipelineConfig{};
 		VLKPipeline::defaultPipelineConfigInfo(
-			pipelineConfig,
-			vlkSwapChain->width(),
-			vlkSwapChain->height());
+			pipelineConfig);
 		pipelineConfig.renderPass = vlkSwapChain->getRenderPass();
 		pipelineConfig.pipelineLayout = pipelineLayout;
 		vlkPipeline = std::make_unique<VLKPipeline>(
@@ -65,6 +66,15 @@ namespace vlk {
 		if (vkAllocateCommandBuffers(vlkDevice.device(), &allocInfo, commandBuffers.data()) != VK_SUCCESS) {
 			throw std::runtime_error("failed to allocate command buffers");
 		}
+	}
+
+	void App::freeCommandBuffers() {
+		vkFreeCommandBuffers(
+			vlkDevice.device(),
+			vlkDevice.getCommandPool(),
+			static_cast<uint32_t>(commandBuffers.size()),
+			commandBuffers.data());
+		commandBuffers.clear();
 	}
 
 
@@ -110,7 +120,17 @@ namespace vlk {
 			glfwWaitEvents();
 		}
 		vkDeviceWaitIdle(vlkDevice.device());
-		vlkSwapChain = std::make_unique<VLKSwapChain>(vlkDevice, extent);
+
+		if (vlkSwapChain == nullptr){
+			vlkSwapChain = std::make_unique<VLKSwapChain>(vlkDevice, extent);
+		}
+		else {
+			vlkSwapChain = std::make_unique<VLKSwapChain>(vlkDevice, extent, std::move(vlkSwapChain));
+			if (vlkSwapChain->imageCount() != commandBuffers.size()) {
+				freeCommandBuffers();
+				createCommandBuffers();
+			}
+		}
 		createPipeline();
 	}
 
@@ -138,6 +158,17 @@ namespace vlk {
 		renderPassInfo.pClearValues = clearValues.data();
 
 		vkCmdBeginRenderPass(commandBuffers[imageIndex], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+		VkViewport viewport{};
+		viewport.x = 0.0f;
+		viewport.y = 0.0f;
+		viewport.width = static_cast<float>(vlkSwapChain->getSwapChainExtent().width);
+		viewport.height = static_cast<float>(vlkSwapChain->getSwapChainExtent().height);
+		viewport.minDepth = 0.0f;
+		viewport.maxDepth = 1.0f;
+		VkRect2D scissor{ {0, 0}, vlkSwapChain->getSwapChainExtent() };
+		vkCmdSetViewport(commandBuffers[imageIndex], 0, 1, &viewport);
+		vkCmdSetScissor(commandBuffers[imageIndex], 0, 1, &scissor);
 
 		vlkPipeline->bind(commandBuffers[imageIndex]);
 		vlkModel->bind(commandBuffers[imageIndex]);
